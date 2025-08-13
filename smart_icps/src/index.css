@@ -1,0 +1,36 @@
+/* In src/index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+
+@layer components {
+    .btn {
+        @apply inline-flex items-center justify-center px-6 py-3 rounded-lg font-semibold text-sm shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
+    }
+    .btn-primary {
+        @apply bg-primary text-white hover:bg-primary-hover focus:ring-primary;
+    }
+    .btn-secondary {
+        @apply bg-gray-100 text-gray-800 border border-gray-300 hover:bg-gray-200 focus:ring-gray-400;
+    }
+    .btn-success {
+        @apply bg-secondary text-white hover:bg-secondary-hover focus:ring-secondary;
+    }
+    .btn-add {
+        @apply bg-light-primary text-primary border border-light-primary hover:bg-primary hover:text-white px-3 py-2 text-xs;
+    }
+    .form-label {
+        @apply block text-xs font-semibold text-label uppercase tracking-wider mb-2;
+    }
+    .form-input {
+        @apply block w-full px-4 py-2 text-base text-text-main bg-white border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent;
+    }
+    .form-text-muted {
+        @apply text-xs text-gray-500 mt-1;
+    }
+    .nav-link {
+        @apply flex items-center font-semibold text-gray-600 uppercase text-xs px-4 py-2 hover:text-primary transition-colors;
+    }
+}

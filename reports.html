@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Powered Interactive Dashboard</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- GridStack.js -->
+    <script src="https://cdn.jsdelivr.net/npm/gridstack@9.3.0/dist/gridstack-all.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/gridstack@9.3.0/dist/gridstack.min.css" rel="stylesheet" />
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <!-- Grid.js -->
+    <script src="https://cdn.jsdelivr.net/npm/gridjs/dist/gridjs.umd.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/gridjs/dist/theme/mermaid.min.css" rel="stylesheet" />
+
+    <style>
+        /* Custom styles for the dashboard */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            /* gray-100 */
+        }
+
+        /* GridStack widget styling */
+        .grid-stack-item-content {
+            background-color: #ffffff;
+            border-radius: 0.5rem;
+            /* box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            /* align-items: center; */
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Header for each widget */
+        .widget-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            background-color: #f9fafb;
+            /* gray-50 */
+            border-bottom: 1px solid #e5e7eb;
+            /* gray-200 */
+            cursor: move;
+        }
+
+        .widget-title {
+            font-weight: 600;
+            color: #111827;
+            /* gray-900 */
+        }
+
+        /* Correctly size and center the widget body to contain the chart */
+        .widget-body {
+            flex-grow: 1;
+            padding: 1rem;
+            position: relative;
+            /* Keep for chart.js tooltips */
+            display: grid;
+            /* Use grid to give the canvas a space to fill */
+            min-height: 0;
+            /* Prevents overflow issues in flex containers */
+        }
+
+        /* Let the container and Chart.js manage the canvas size */
+        .widget-body canvas {
+            /* Canvas will now stretch to fill the parent grid cell by default */
+        }
+
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100">
+
+    <!-- Header and Main Action Button -->
+    <header class="bg-white shadow-sm p-4 flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-gray-800">My Dashboard</h1>
+        <button id="generate-btn"
+            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105 flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2">
+                <path
+                    d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+                <path d="M5 3v4" />
+                <path d="M19 17v4" />
+                <path d="M3 5h4" />
+                <path d="M17 19h4" />
+            </svg>
+            Generate with AI
+        </button>
+    </header>
+
+    <!-- The GridStack dashboard container -->
+    <main class="p-4">
+        <div class="grid-stack"></div>
+    </main>
+
+    <!-- AI Generation Modal -->
+    <div id="ai-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-2xl transform transition-all duration-300 scale-95">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold text-gray-800">Generate Chart with AI</h2>
+                    <button id="close-modal-btn" class="text-gray-400 hover:text-gray-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="space-y-4">
+                    <p class="text-gray-600">Describe the chart you want to create. For example: "a bar chart showing
+                        monthly sales" or "a pie chart of user demographics".</p>
+                    <textarea id="ai-prompt"
+                        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                        rows="3"
+                        placeholder="e.g., A line chart showing website traffic for the last 6 months"></textarea>
+
+                    <button id="send-prompt-btn"
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105 flex items-center justify-center">
+                        Generate
+                    </button>
+                </div>
+            </div>
+
+            <!-- AI Response Area -->
+            <div id="ai-response-area" class="p-6 border-t border-gray-200 hidden">
+                <!-- Loader -->
+                <div id="ai-loader" class="flex flex-col items-center justify-center text-gray-600">
+                    <svg class="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none"
+                        viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                        </circle>
+                        <path class="opacity-75" fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                        </path>
+                    </svg>
+                    <p class="mt-3">AI is thinking...</p>
+                </div>
+
+                <!-- Chart Preview -->
+                <div id="ai-preview" class="hidden">
+                    <h3 class="text-xl font-semibold mb-4 text-gray-700" id="preview-title">AI Generated Preview</h3>
+                    <div class="relative h-72 bg-gray-50 p-4 rounded-lg border">
+                        <canvas id="preview-canvas"></canvas>
+                    </div>
+                    <div id="table-preview-container" class="bg-gray-50 p-4 rounded-lg border hidden"></div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div id="ai-actions" class="mt-6 flex justify-end space-x-3 hidden">
+                    <button id="cancel-btn"
+                        class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">Cancel</button>
+                    <button id="retry-btn"
+                        class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-lg">Retry</button>
+                    <button id="accept-btn"
+                        class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">Accept & Add
+                        to Dashboard</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- STATE MANAGEMENT ---
+            let grid;
+            let chartInstances = {}; // To store chart objects {id: chartInstance}
+            let tempChartConfig = null; // Store config from AI for 'Accept'
+            let tempChartTitle = '';
+            let previewChart = null;
+
+
+            const API_BASE_URL = "http://127.0.0.1:8000";
+            const API_EXTRACT_URL = `${API_BASE_URL}/ai-data-provider/`;
+
+            // --- DOM ELEMENTS ---
+            const modal = document.getElementById('ai-modal');
+            const generateBtn = document.getElementById('generate-btn');
+            const closeModalBtn = document.getElementById('close-modal-btn');
+            const sendPromptBtn = document.getElementById('send-prompt-btn');
+            const aiResponseArea = document.getElementById('ai-response-area');
+            const aiLoader = document.getElementById('ai-loader');
+            const aiPreview = document.getElementById('ai-preview');
+            const aiActions = document.getElementById('ai-actions');
+            const cancelBtn = document.getElementById('cancel-btn');
+            const retryBtn = document.getElementById('retry-btn');
+            const acceptBtn = document.getElementById('accept-btn');
+            const promptTextarea = document.getElementById('ai-prompt');
+
+            // --- GRIDSTACK INITIALIZATION ---
+            const initGrid = () => {
+                grid = GridStack.init({
+                    float: false, // Disables floating widgets
+                    cellHeight: '70px', // Set cell height
+                    margin: 10, // Margin between widgets
+                    alwaysShowResizeHandle: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent), // Show resize handle on touch devices
+                });
+
+                loadDashboard();
+
+                // --- GRID EVENT LISTENERS ---
+
+                // Save layout on drag stop
+                grid.on('dragstop', (event, el) => {
+                    saveDashboard();
+                });
+                grid.on('resizestop', (event, el) => {
+                    const widget = el; // DOM element
+                    const widgetId = widget.getAttribute('gs-id'); // Extract gs-id
+                    const chartCanvasId = "chart-" + widgetId;
+                    const chartCanvas = document.getElementById(chartCanvasId);
+
+                    if (widget && chartCanvas && chartInstances[widgetId]) {
+                        const width = widget.offsetWidth;
+                        const height = widget.offsetHeight;
+
+                        chartCanvas.style.width = `${width}px`;
+                        chartCanvas.style.height = `${height - 120}px`;
+
+                        chartInstances[widgetId].resize();
+
+                        saveDashboard();
+                    } else {
+                        console.warn("Missing widget, chart canvas, or chart instance for gs-id:", widgetId);
+                    }
+                });
+            };
+
+            // --- MODAL CONTROLS ---
+            const openModal = () => {
+                modal.classList.remove('hidden');
+                setTimeout(() => modal.querySelector('.bg-white').classList.remove('scale-95'), 10);
+                resetModalState();
+            };
+
+            const closeModal = () => {
+                modal.querySelector('.bg-white').classList.add('scale-95');
+                setTimeout(() => modal.classList.add('hidden'), 300);
+            };
+
+            const resetModalState = () => {
+                promptTextarea.value = '';
+                aiResponseArea.classList.add('hidden');
+                aiLoader.classList.remove('hidden');
+                aiPreview.classList.add('hidden');
+                aiActions.classList.add('hidden');
+                if (previewChart) {
+                    previewChart.destroy();
+                    previewChart = null;
+                }
+                tempChartConfig = null;
+                tempChartTitle = '';
+            };
+
+            // --- AI CHART GENERATION (SIMULATED) ---
+            const fakeAiChartGenerator = (prompt) => {
+                return new Promise((resolve) => {
+                    setTimeout(() => {
+                        // Pre-defined chart templates
+                        const charts = [
+                            {
+                                title: 'Monthly Sales Data',
+                                config: `{
+                                            type: 'bar',
+                                            data: {
+                                                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                                                datasets: [{
+                                                    label: 'Sales ($k)',
+                                                    data: [12, 19, 3, 5, 6, 3],
+                                                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                                                    borderColor: 'rgba(54, 162, 235, 1)',
+                                                    borderWidth: 1
+                                                }]
+                                            },
+                                            options: { responsive: true, maintainAspectRatio: false }
+                                        }`
+                            },
+                            {
+                                title: 'Website Traffic',
+                                config: `{
+                            type: 'line',
+                            data: {
+                                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                                datasets: [{
+                                    label: 'Unique Visitors',
+                                    data: [65, 59, 80, 81, 56, 55],
+                                    fill: false,
+                                    borderColor: 'rgb(75, 192, 192)',
+                                    tension: 0.1
+                                }]
+                            },
+                            options: { responsive: true, maintainAspectRatio: false }
+                        }`
+                            },
+                            {
+                                title: 'User Demographics',
+                                config: `{
+                            type: 'pie',
+                            data: {
+                                labels: ['Desktop', 'Mobile', 'Tablet'],
+                                datasets: [{
+                                    label: 'User Base',
+                                    data: [300, 150, 50],
+                                    backgroundColor: ['rgb(255, 99, 132)', 'rgb(54, 162, 235)', 'rgb(255, 205, 86)'],
+                                    hoverOffset: 4
+                                }]
+                            },
+                            options: { responsive: true, maintainAspectRatio: false }
+                        }`
+                            },
+                            {
+                                title: 'Feature Performance',
+                                config: `{
+                            type: 'radar',
+                            data: {
+                                labels: ['Ease of Use', 'Speed', 'Features', 'Support', 'Reliability'],
+                                datasets: [{
+                                    label: 'Product A',
+                                    data: [4, 5, 3, 4, 5],
+                                    fill: true,
+                                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                                    borderColor: 'rgb(255, 99, 132)',
+                                    pointBackgroundColor: 'rgb(255, 99, 132)',
+                                    pointBorderColor: '#fff',
+                                    pointHoverBackgroundColor: '#fff',
+                                    pointHoverBorderColor: 'rgb(255, 99, 132)'
+                                }, {
+                                    label: 'Product B',
+                                    data: [3, 4, 5, 3, 4],
+                                    fill: true,
+                                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                                    borderColor: 'rgb(54, 162, 235)',
+                                    pointBackgroundColor: 'rgb(54, 162, 235)',
+                                    pointBorderColor: '#fff',
+                                    pointHoverBackgroundColor: '#fff',
+                                    pointHoverBorderColor: 'rgb(54, 162, 235)'
+                                }]
+                            },
+                            options: { responsive: true, maintainAspectRatio: false }
+                        }`
+                            }
+                        ];
+
+                        // Simple logic to pick a chart based on the prompt
+                        let selectedChart;
+                        if (prompt.toLowerCase().includes('bar')) {
+                            selectedChart = charts[0];
+                        } else if (prompt.toLowerCase().includes('line') || prompt.toLowerCase().includes('traffic')) {
+                            selectedChart = charts[1];
+                        } else if (prompt.toLowerCase().includes('pie') || prompt.toLowerCase().includes('demographics')) {
+                            selectedChart = charts[2];
+                        } else if (prompt.toLowerCase().includes('radar') || prompt.toLowerCase().includes('performance')) {
+                            selectedChart = charts[3];
+                        } else {
+                            // Pick a random one as a fallback
+                            selectedChart = charts[Math.floor(Math.random() * charts.length)];
+                        }
+                        resolve(selectedChart);
+                    }, 1500); // Simulate network delay
+                });
+            };
+
+            const handleGenerateRequest = async () => {
+                const prompt = promptTextarea.value;
+                if (!prompt) {
+                    alert("Please enter a description for the chart.");
+                    return;
+                }
+
+                aiResponseArea.classList.remove('hidden');
+                aiLoader.classList.remove('hidden');
+                aiPreview.classList.add('hidden');
+                aiActions.classList.add('hidden');
+
+                if (previewChart) {
+                    previewChart.destroy();
+                }
+
+                $.ajax({
+                    url: API_EXTRACT_URL,
+                    method: "POST",
+                    contentType: "application/json",
+                    data: JSON.stringify({
+                        prompt: prompt
+                    }),
+                    success: function (response) {
+                        console.log("Response:", response);
+                        if (response.type === "chart") {
+                            handleChartAiResponse(JSON.parse(response.content));
+                        }else if (response.type === "table") {
+                            handleChartAiResponse(JSON.parse(response.content));
+                        }  else {
+                            alert("AI did not return a valid chart configuration. Please try again.");
+                            aiLoader.classList.add('hidden');
+                        }
+
+                    },
+                    error: function (jqXHR, textStatus, errorThrown) {
+                        console.error("Error:", errorThrown);
+                    }
+                });
+
+            };
+
+
+            const handleChartAiResponse = (response) => {
+                // Clear previous state
+                // if (previewChart) {
+                //     previewChart.destroy();
+                // }
+
+                console.log("AI Response:", response);
+
+                // Set temporary config and title
+                tempChartConfig = response.config;
+                tempChartTitle = response.title;
+
+                // Update preview area
+                document.getElementById('preview-title').textContent = `${tempChartTitle} (Preview)`;
+                aiLoader.classList.add('hidden');
+                aiPreview.classList.remove('hidden');
+                aiActions.classList.remove('hidden');
+
+                // Render the chart in the preview canvas
+                const previewCtx = document.getElementById('preview-canvas').getContext('2d');
+                const configObject = new Function(`return ${tempChartConfig}`)();
+                previewChart = new Chart(previewCtx, configObject);
+            };
+
+            const handleTableAiResponse = (response) => {
+                tempWidgetConfig = { type: 'table', title: response.title, data: response.data };
+
+                aiLoader.classList.add('hidden');
+                aiPreview.classList.remove('hidden');
+                aiActions.classList.remove('hidden');
+                tablePreviewContainer.classList.remove('hidden');
+                document.getElementById('preview-title').textContent = `${response.title} (Preview)`;
+
+                if (previewGrid) previewGrid.destroy();
+                // Render the table in the preview container
+                previewGrid = renderInteractiveTable(response.data, 'table-preview-container', true);
+            };
+
+            /**
+             * Renders an interactive table using Grid.js.
+             * @param {Array<Object>} data - The array of data objects to display.
+             * @param {string|HTMLElement} targetElement - The element or its ID to render the table into.
+             * @param {boolean} isPreview - If true, use minimal settings for the modal preview.
+             * @returns {gridjs.Grid} - The Grid.js instance.
+             */
+            function renderInteractiveTable(data, targetElement, isPreview = false) {
+                const container = typeof targetElement === 'string' ? document.getElementById(targetElement) : targetElement;
+                if (!container) return;
+                container.innerHTML = ''; // Clear previous content
+
+                // Dynamically create columns from data keys
+                const columns = data.length > 0 ? Object.keys(data[0]) : [];
+
+                const grid = new gridjs.Grid({
+                    columns: columns,
+                    data: data,
+                    search: !isPreview,
+                    sort: !isPreview,
+                    pagination: !isPreview ? { enabled: true, limit: 5 } : false,
+                    download: !isPreview
+                });
+
+                grid.render(container);
+                return grid;
+            }
+
+
+            // --- DASHBOARD ACTIONS ---
+            const addWidgetToDashboard = (widgetData) => {
+                const widgetId = widgetData.id || `widget-${Date.now()}`;
+                const title = widgetData.title || "New Chart";
+                const chartConfigString = widgetData.chartConfigString;
+
+                const widgetHTML = `
+                                    <div>
+                                        <div class="grid-stack-item-content">
+                                            <div class="widget-header">
+                                                <span class="widget-title">${title}</span>
+                                                <button class="remove-widget-btn text-gray-500 hover:text-red-600" title="Remove widget">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                                </button>
+                                            </div>
+                                            <div class="widget-body" >
+                                                <canvas id="chart-${widgetId}"  width="300" height="200"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>`;
+
+                const widgetOptions = {
+                    id: widgetId,
+                    x: widgetData.x,
+                    y: widgetData.y,
+                    w: widgetData.w || 4,
+                    h: widgetData.h || 5,
+                    content: widgetHTML
+                };
+
+                const newWidget = grid.addWidget(widgetOptions);
+
+                // Store config and title on the element for saving
+                const contentEl = newWidget.querySelector('.grid-stack-item-content');
+                contentEl.dataset.chartConfig = chartConfigString;
+                contentEl.dataset.title = title;
+
+                // Render the chart inside the new widget
+                renderChartInWidget(widgetId, chartConfigString);
+
+                // Add event listener for the remove button
+                newWidget.querySelector('.remove-widget-btn').addEventListener('click', () => {
+                    // Destroy chart instance to free memory
+                    if (chartInstances[widgetId]) {
+                        chartInstances[widgetId].destroy();
+                        delete chartInstances[widgetId];
+                    }
+                    grid.removeWidget(newWidget);
+                    saveDashboard();
+                });
+
+                return newWidget;
+            };
+
+            const renderChartInWidget = (widgetId, configString) => {
+                // Destroy old chart if it exists to prevent memory leaks on re-render
+                if (chartInstances[widgetId]) {
+                    chartInstances[widgetId].destroy();
+                }
+
+                const canvas = document.getElementById(`chart-${widgetId}`);
+                if (!canvas) return;
+
+                const ctx = canvas.getContext('2d');
+                const configObject = new Function(`return ${configString}`)();
+                chartInstances[widgetId] = new Chart(ctx, configObject);
+            };
+
+
+            // --- PERSISTENCE (LOCAL STORAGE) ---
+            const saveDashboard = () => {
+                const serializableData = grid.engine.nodes.map(node => {
+                    const contentEl = node.el.querySelector('.grid-stack-item-content');
+                    if (!contentEl) return null;
+                    return {
+                        x: node.x,
+                        y: node.y,
+                        w: node.w,
+                        h: node.h,
+                        id: node.id,
+                        title: contentEl.dataset.title,
+                        chartConfigString: contentEl.dataset.chartConfig
+                    };
+                }).filter(item => item !== null);
+
+                localStorage.setItem('dashboardLayout', JSON.stringify(serializableData));
+            };
+
+            const loadDashboard = () => {
+                const savedData = localStorage.getItem('dashboardLayout');
+                if (savedData) {
+                    try {
+                        const widgets = JSON.parse(savedData);
+                        if (Array.isArray(widgets)) {
+                            grid.removeAll(false); // false to not trigger events
+                            widgets.forEach(widgetData => {
+                                addWidgetToDashboard(widgetData);
+                            });
+                        }
+                    } catch (e) {
+                        console.error("Error loading dashboard from localStorage", e);
+                        localStorage.removeItem('dashboardLayout');
+                    }
+                }
+            };
+
+
+            // --- EVENT LISTENERS ---
+            generateBtn.addEventListener('click', openModal);
+            closeModalBtn.addEventListener('click', closeModal);
+            cancelBtn.addEventListener('click', closeModal);
+            sendPromptBtn.addEventListener('click', handleGenerateRequest);
+            retryBtn.addEventListener('click', handleGenerateRequest);
+
+            acceptBtn.addEventListener('click', () => {
+                if (tempChartConfig && tempChartTitle) {
+                    addWidgetToDashboard({
+                        title: tempChartTitle,
+                        chartConfigString: tempChartConfig,
+                    });
+                    saveDashboard();
+                    closeModal();
+                }
+            });
+
+            // Close modal if clicking outside of it
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    closeModal();
+                }
+            });
+
+            // --- START THE APP ---
+            initGrid();
+        });
+    </script>
+
+</body>
+
+</html>

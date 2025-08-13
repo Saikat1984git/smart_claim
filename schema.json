@@ -1,0 +1,104 @@
+{
+  "Model": {
+    "dataType": "String",
+    "description": "Model name of the vehicle.",
+    "enum": [
+      "MAZDA3_SEDAN",
+      "MAZDA3_HATCHBACK",
+      "MAZDA_CX_30",
+      "MAZDA_CX_5",
+      "MAZDA_CX_50",
+      "MAZDA_CX_50_HYBRID",
+      "MAZDA_CX_70",
+      "MAZDA_CX_70_PHEV",
+      "MAZDA_CX_90",
+      "MAZDA_CX_90_PHEV",
+      "MAZDA_MX_5_MIATA",
+      "MAZDA_MX_5_MIATA_RF"
+    ]
+  },
+  "Purchasing Year": {
+    "dataType": "Numerical",
+    "description": "Purchasing Year of the Vehicle."
+  },
+  "Post ODO": {
+    "dataType": "Numerical",
+    "description": "Odometer reading after the time of repair."
+  },
+  "Warranty Type": {
+    "dataType": "Categorical",
+    "description": "Type of warranty under which the claim is made.",
+    "enum": [
+      "A",
+      "K",
+      "P",
+      "R"
+    ]
+  },
+  "Symptom Code": {
+    "dataType": "Categorical",
+    "description": "Standardized code for the reported symptom."
+  },
+  "Damage Code": {
+    "dataType": "Categorical",
+    "description": "Standardized code for the observed damage."
+  },
+  "Related Parts": {
+    "dataType": "Array of partid",
+    "description": "Alphanumeric part codes. Can have multiple entries."
+  },
+  "Related Parts Quantity": {
+    "dataType": "Numerical",
+    "description": "Quantity for each related part. Can have multiple entries."
+  },
+  "Repair Location": {
+    "dataType": "Array of codes",
+    "description": "Location of failure/repair. Up to 3 locations can be specified."
+  },
+  "Estimated Amount": {
+    "dataType": "Numerical",
+    "description": "Estimated monetary value of the claim in dollars."
+  },
+  "Labor Hours": {
+    "dataType": "Numerical",
+    "description": "Total time spent by labor."
+  },
+  "Sublet Code": {
+    "dataType": "Array of codes",
+    "description": "Code for sublet work. Can have multiple entries."
+  },
+  "Sublet Amount": {
+    "dataType": "Numerical",
+    "description": "Monetary value for sublet work in dollars."
+  },
+  "Prior ODO": {
+    "dataType": "Numerical",
+    "description": "Odometer reading before the time of repair."
+  },
+  "Authorized By": {
+    "dataType": "Categorical",
+    "description": "Entity that authorized the claim/repair.",
+    "enum": [
+      "",
+      "W",
+      "T",
+      "C"
+    ]
+  },
+  "Dealer Code": {
+    "dataType": "Categorical",
+    "description": "Identifier for the dealership."
+  },
+  "Warrenty Status": {
+    "dataType": "Categorical",
+    "description": "Indicates if the claim is Accepted or Rejected.",
+    "enum": [
+      "A",
+      "R"
+    ]
+  },
+  "ReasonCode": {
+    "dataType": "Categorical",
+    "description": "Reason for the warranty status. 'ACP' for Accepted, other codes for Rejected."
+  }
+}
