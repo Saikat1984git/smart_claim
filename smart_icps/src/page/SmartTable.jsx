@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { ChevronUp, ChevronDown, Search, Send } from 'lucide-react';
+import config from '../config';
 
 // --- Reusable, Plug-and-Play Data Table Component ---
 // This component is now self-contained and receives its data and functions via props.
@@ -180,7 +181,7 @@ export default function SmartTable() {
         setData([]); // Clear previous data
 
         try {
-            const response = await fetch("http://127.0.0.1:8000/ai-smart-table/", {
+            const response = await fetch(`${config.API_BASE_URL}/ai-smart-table/`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"

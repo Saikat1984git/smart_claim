@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronUp, ChevronDown, Search, Filter, X, LoaderCircle, AlertTriangle } from 'lucide-react';
+import config from '../../config';
 
 // Reusable Status Badge Component
 const StatusBadge = ({ status }) => {
@@ -33,7 +34,7 @@ const InteractiveTable = () => {
             setIsLoading(true);
             setError(null);
             try {
-                const response = await fetch("http://127.0.0.1:8000/last-month-claims/");
+                const response = await fetch(`${config.API_BASE_URL}/last-month-claims/`);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }

@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { PieChart, Pie, Cell, Sector, ResponsiveContainer, Legend } from 'recharts';
 import GraphLoader from '../common/GraphLoader';
+import config from '../../config';
 
 // --- (Keep your Custom Components: renderActiveShape, CustomLegend) ---
 // Note: renderActiveShape has a small fix to get total and year from the payload.
@@ -89,7 +90,7 @@ const InteractiveDonutChart = ({ year }) => {
                 setError(null);
                 setIsLoading(true);
 
-                const response = await fetch("http://127.0.0.1:8000/claim-status-distribution/", {
+                const response = await fetch(`${config.API_BASE_URL}/claim-status-distribution/`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ year }),

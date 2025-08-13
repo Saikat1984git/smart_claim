@@ -12,6 +12,7 @@ import {
   Filler,
 } from 'chart.js';
 import GraphLoader from '../common/GraphLoader';
+import config from '../../config';
 
 // Register Chart.js components
 ChartJS.register(
@@ -158,7 +159,7 @@ const ClaimsTrendChart = ({ setYear }) => {
 
       try {
         for (const year of years) {
-          const response = await fetch("http://127.0.0.1:8000/generate-claim-data/", {
+          const response = await fetch(`${config.API_BASE_URL}/generate-claim-data/`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

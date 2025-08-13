@@ -1,9 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import axios from 'axios';
 import { Bot, X, CheckCircle2, XCircle } from 'lucide-react'; 
+import config from '../config';
 
 // Configuration for API endpoints
-const API_BASE_URL = "http://127.0.0.1:8000"; // IMPORTANT: Replace with your actual API URL
+const API_BASE_URL = `${config.API_BASE_URL}`; // IMPORTANT: Replace with your actual API URL
 const API_EXTRACT_URL = `${API_BASE_URL}/extract-warranty-claim`;
 const API_PREDICT_URL = `${API_BASE_URL}/predict-from-json-dmy/`;
 

@@ -9,6 +9,7 @@ import {
     Hourglass,
     ClipboardList
 } from 'lucide-react';
+import config from '../../config';
 
 const CountUp = ({ target, isCurrency = false }) => {
     const [count, setCount] = useState(0);
@@ -136,7 +137,7 @@ const AIPredictionCard = ({ title, color, code,dummydata, period, onPeriodChange
             console.log("Fetching data for code:", code);
 
             try {
-                const response = await fetch("http://127.0.0.1:8000/ai-data-card/", {
+                const response = await fetch(`${config.API_BASE_URL}/ai-data-card/`, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",

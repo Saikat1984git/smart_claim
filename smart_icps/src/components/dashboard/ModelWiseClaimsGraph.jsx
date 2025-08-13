@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid
 } from 'recharts';
+import config from '../../config';
 
 // --- SVG Icon Component (Unchanged) ---
 const XIcon = () => (
@@ -151,7 +152,7 @@ const MazdaClaimsDashboard = () => {
     );
 
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/forecast-claims/')
+    fetch(`${config.API_BASE_URL}/forecast-claims/`)
       .then(res => res.ok ? res.json() : Promise.reject(new Error('API error')))
       .then(data => {
         setDailyClaimsData(data.data); // use `data.data` to access actual forecast
