@@ -31,6 +31,7 @@ import random
 
 from fetchData import generate_claim_data_by_year, generate_claims_forecast, get_claim_status_distribution_by_year, get_claim_summary, get_last_month_claims
 from sqliteClient import SQLiteClient
+from azureAiClient import AzureAiClient
 
 # --- FastAPI App Initialization with CORS ---
 app = FastAPI(title="Mazda Warranty Claim Extractor & Predictor")
@@ -45,6 +46,7 @@ except FileNotFoundError:
     warranty_df = None
 
 db = SQLiteClient('warrenty2.db')
+azure_client= AzureAiClient()
 
 
 generated_claims_cache = {}
@@ -168,7 +170,7 @@ async def extract_warranty_claim(file: UploadFile = File(...)):
         base64_image = base64.b64encode(contents).decode("utf-8")
 
         # Call the OpenAI processing function
-        result = extract_data_from_base64_openai(base64_image, mime_type)
+        result = azure_client.extract_warranty_claim_from_base64(base64_image, mime_type)
         return JSONResponse(content=result.model_dump())
 
     except Exception as e:
@@ -285,13 +287,15 @@ async def create_response(data: PromptInput):
         # )
         openaiAssistant= OpenAIAssistant(model="o4-mini");
         print("Received prompt:", data.prompt)
-        resdf=get_dataset(data.prompt)  # Ensure dataset is loaded
-        print("Dataset loaded successfully.",resdf.to_string())
+
+        resdf=db.get_data_from_ai(data.prompt)  # Ensure dataset is loaded
+        print(type(resdf),print(resdf))
+        # print("Dataset loaded successfully.",resdf.to_string())
         # Parse the response string into a dictionary
         print("Generating chart.js code for the provided prompt...")
-        response = openaiAssistant.generate_chart_js_code(data.prompt, resdf)
+        response = azure_client.generate_chart_js_code(data.prompt, resdf)
         print("Response from AI data provider:", response)
-        return response;
+        return response
     except HTTPException as e:
         # Re-raise HTTPExceptions to let FastAPI handle them
         print(e)

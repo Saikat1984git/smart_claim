@@ -3,12 +3,13 @@ from openai import OpenAI
 import pandas as pd
 from typing import List
 import re
+from azureAiClient import AzureAiClient
 
 class SQLiteClient:
     def __init__(self, db_name: str = 'mydb.db'):
         self.conn = sqlite3.connect(db_name)
         self.cursor = self.conn.cursor()
-        self.client = OpenAI()
+        self.client = AzureAiClient()
 
     def query(self, sql: str):
         return self.conn.execute(sql).fetchall()
@@ -119,16 +120,14 @@ class SQLiteClient:
         user_prompt = f"""
             User prompt: {prompt}
         """
-
-        response = self.client.chat.completions.create(
+        content = self.client.send_system_and_user_message(
             model="o4-mini",
-            messages=[
+            messeges=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-           
         )
-        content = response.choices[0].message.content.strip()
+        
         # Extract the first code block inside triple backticks (with or without language tag)
         match = re.search(r"```(?:\w+)?\n(.*?)```", content, re.DOTALL)
 
@@ -158,13 +157,13 @@ class SQLiteClient:
             {"role": "user", "content": f"Question:{prompt}\n\nData:\n{data}"}
         ]
 
-        response =self.client.responses.create(
+        response =self.client.send_system_and_user_message(
             model="gpt-4o-mini",
-            input=messages,
+            messeges=messages,
             temperature=0.3
         )
 
-        return response.output_text
+        return response
        
     
 

@@ -110,8 +110,6 @@ def get_relevant_data(user_prompt: str, df: pd.DataFrame, schema: dict) -> pd.Da
         return pd.DataFrame() # Return an empty DataFrame on error
     
 
-
-
 def get_dataset(userPrompt: str) -> pd.DataFrame:
     """
     Wrapper function to get the dataset based on user prompt.
