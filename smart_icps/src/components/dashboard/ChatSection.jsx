@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Markdown  from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Send, Bot, User, CornerDownLeft, Loader } from 'lucide-react';
+import config from '../../config';
+
 
 // Main Chat Component
 const ChatSection = ({ height = '500px' }) => {
@@ -19,7 +21,7 @@ const ChatSection = ({ height = '500px' }) => {
 
   const getAIResponse = async (userInput) => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/ai-chatbot-sql/', {
+      const response = await fetch(`${config.API_BASE_URL}/ai-chatbot-sql/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
