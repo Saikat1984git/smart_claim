@@ -318,10 +318,10 @@ async def create_response(data: PromptInput):
         #         type= ResponseType.chart,
         #         content= "{\n  \"title\": \"Warranty Claim Counts by Car Model\",\n  \"config\": \"{ type: 'bar', data: { labels: ['MAZDA3_HATCHBACK','MAZDA3_SEDAN','MAZDA_CX_30','MAZDA_CX_5','MAZDA_CX_50','MAZDA_CX_50_HYBRID','MAZDA_CX_70','MAZDA_CX_70_PHEV','MAZDA_CX_90','MAZDA_CX_90_PHEV','MAZDA_MX_5_MIATA','MAZDA_MX_5_MIATA_RF'], datasets: [{ label: 'Claim Count', data: [809,882,831,858,850,806,795,846,878,785,819,841], backgroundColor: ['rgba(75,192,192,0.6)','rgba(54,162,235,0.6)','rgba(255,206,86,0.6)','rgba(255,99,132,0.6)','rgba(153,102,255,0.6)','rgba(255,159,64,0.6)','rgba(201,203,207,0.6)','rgba(0,123,255,0.6)','rgba(40,167,69,0.6)','rgba(220,53,69,0.6)','rgba(23,162,184,0.6)','rgba(108,117,125,0.6)'], borderColor: ['rgba(75,192,192,1)','rgba(54,162,235,1)','rgba(255,206,86,1)','rgba(255,99,132,1)','rgba(153,102,255,1)','rgba(255,159,64,1)','rgba(201,203,207,1)','rgba(0,123,255,1)','rgba(40,167,69,1)','rgba(220,53,69,1)','rgba(23,162,184,1)','rgba(108,117,125,1)'], borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' }, tooltip: { enabled: true, mode: 'index', intersect: false } }, scales: { x: { title: { display: true, text: 'Car Model' }, ticks: { maxRotation: 45, minRotation: 45 } }, y: { beginAtZero: true, title: { display: true, text: 'Claim Count' } } } } }\"\n}"
         # )
-        openaiAssistant= OpenAIAssistant(model="o4-mini");
+
         print("Received prompt:", data.prompt)
-        resdf=get_dataset(data.prompt)  # Ensure dataset is loaded
-        print("Dataset loaded successfully.",resdf.to_string())
+        resdf= db.get_data_from_ai(data.prompt)  # Ensure dataset is loaded
+        #print("Dataset loaded successfully.",resdf.to_string())
         # Parse the response string into a dictionary
         print("Generating human readble answer for the provided prompt...")
         response = openaiAssistant.dataframe_to_natural_language(data.prompt, resdf)
