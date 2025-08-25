@@ -1,3 +1,4 @@
+import json
 import os
 from typing import Optional, Any, Dict
 from openai import AzureOpenAI
@@ -227,7 +228,74 @@ class AzureAiClient:
                 content="Failed to generate chart configuration. Please refine the prompt or try again.",
             )
 
+        # ---------- NEW: Gatekeep prompts via function-calling ----------
+    
+    
+    def gatekeep_question(self, prompt: str, model: Optional[str] = None) -> tuple[bool, str]:
+        """
+        Classifies the user's message via OpenAI function-calling.
+        Returns (isValidQuestion, reply_text).
+        - If isValidQuestion is False: reply_text contains a short friendly message; STOP further processing.
+        - If isValidQuestion is True: reply_text is "", proceed with your pipeline.
+        """
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "classify_prompt",
+                    "description": (
+                        "Decide if the user's message is a valid SQLite data/SQL question. "
+                        "If valid, set isValidQuestion=true and reply=\"\". "
+                        "If not valid, set isValidQuestion=false and provide a short reply."
+                    ),
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "isValidQuestion": {
+                                "type": "boolean",
+                                "description": "True if the user asks a data/SQL question; otherwise false."
+                            },
+                            "reply": {
+                                "type": "string",
+                                "description": "Short friendly reply for non-questions. Empty when valid."
+                            }
+                        },
+                        "required": ["isValidQuestion", "reply"],
+                        "additionalProperties": False
+                    }
+                }
+            }
+        ]
 
+        system = (
+            "You are a strict gatekeeper for a SQLite Query Assistant. "
+            "Determine if the user's message is a valid data/SQL question about the database. "
+            "Valid examples: 'total claims this year', 'list claims between two dates', "
+            "'group by model and count'. Invalid: greetings, thanks, small talk, unrelated text. "
+            "ALWAYS call the function 'classify_prompt' exactly once. "
+            "If valid: isValidQuestion=true and reply=\"\". "
+            "If not valid: isValidQuestion=false with a brief, helpful reply. "
+            "Do NOT answer the question yourself."
+        )
+
+        resp = self.client.chat.completions.create(
+            model=model or self.deployment,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": prompt or ""},
+            ],
+            tools=tools,
+            tool_choice={"type": "function", "function": {"name": "classify_prompt"}},
+            temperature=0
+        )
+
+        tool_calls = resp.choices[0].message.tool_calls
+        if not tool_calls:
+            # Defensive fallback
+            return False, "I can help with SQL/data questions. Try: 'count claims by month for 2025'."
+
+        args = json.loads(tool_calls[0].function.arguments or "{}")
+        return bool(args.get("isValidQuestion", False)), (args.get("reply") or "")
 
 
 if __name__ == "__main__":

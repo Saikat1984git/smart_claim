@@ -110,11 +110,18 @@ class SQLiteClient:
         return output
 
     def get_data_from_ai(self, prompt: str):
+        is_valid, reply = self.client.gatekeep_question(prompt)
+        if not is_valid:
+            return reply
         system_prompt = f"""
         You are an expert writing query for a sqlite database.
         your task is to write a query to answer the user's question.
         You will be provided with the data's schema, a sample of the data (the first 5 rows), and a user's question.
         You will return the query in a string format.
+        Rules:
+            - Use only existing tables and columns.
+            - Use SELECT only (no INSERT/UPDATE/DELETE).
+            - Return only the SQL text (no markdown, backticks, comments, or explanation).
         database structure: {self.get_all_details()}
         """
         user_prompt = f"""
@@ -128,19 +135,18 @@ class SQLiteClient:
             ],
         )
         
-        # Extract the first code block inside triple backticks (with or without language tag)
-        match = re.search(r"```(?:\w+)?\n(.*?)```", content, re.DOTALL)
+       
+        # Strip code fences if present (safer than removeprefix/removesuffix)
+        generated_code = re.sub(r'^```(?:sql)?\s*|\s*```$', '', content, flags=re.IGNORECASE).strip()
 
-        if match:
-            generated_code = match.group(1).strip()
-        else:
-            generated_code = content  # fallback to raw content
+        # 1) Remove real newlines/tabs
+        generated_code = generated_code.replace('\r\n', ' ').replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
 
-        # Remove markdown wrapping if present
-        generated_code = generated_code.removeprefix("```sql").removeprefix("```").strip()
-        generated_code = generated_code.removesuffix("```").strip()
-        generated_code = generated_code.strip().strip('"').strip("'")
-        generated_code=generated_code.replace("\n","  ")
+        # 2) Remove *escaped* sequences like \n or \r\n (two characters: backslash + n)
+        generated_code = re.sub(r'\\r?\\n', ' ', generated_code)
+
+        # 3) Collapse multiple spaces
+        generated_code = re.sub(r'\s+', ' ', generated_code).strip()
         
         print("\n--- Generated SQL Code ---")
         print(generated_code)
