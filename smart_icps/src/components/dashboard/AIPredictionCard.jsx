@@ -234,10 +234,10 @@ const AIPredictionCard = ({ title, color, code,dummydata, period, onPeriodChange
                         <h4 className="text-2xl font-bold text-gray-800">
                             <CountUp target={data.projectedClaim} />
                         </h4>
-                        <p className={`text-sm font-semibold text-green-500 flex items-center justify-end gap-1`}>
+                        {/* <p className={`text-sm font-semibold text-green-500 flex items-center justify-end gap-1`}>
                             <TrendingUp size={14} />
                             {data.percentageIncrease}%
-                        </p>
+                        </p> */}
                     </div>
                 </div>
             </motion.div>
