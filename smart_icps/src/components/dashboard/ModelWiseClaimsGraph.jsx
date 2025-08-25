@@ -1,271 +1,432 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-    BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid
 } from 'recharts';
 import config from '../../config';
 
-// --- SVG Icon Component (Unchanged) ---
+/* ----------------- Small SVG X icon ----------------- */
 const XIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+       viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
 );
 
-// --- Static Data and Constants for Forecast View (Unchanged) ---
-const forecastData = [
-    { modelName: 'MAZDA CX 90', 2026: 1000, 2027: 1050, 2028: 1100, 2029: 1150, 2030: 1200 },
-    { modelName: 'MAZDA CX 50', 2026: 1000, 2027: 1050, 2028: 1100, 2029: 1150, 2030: 1200 },
-    { modelName: 'MAZDA MIATA RF', 2026: 950, 2027: 1000, 2028: 1050, 2029: 1100, 2030: 1150 },
-].sort((a, b) => (b['2026'] + b['2027'] + b['2028'] + b['2029'] + b['2030']) - (a['2026'] + a['2027'] + a['2028'] + a['2029'] + a['2030']));
-
-const forecastYears = ['2026', '2027', '2028', '2029', '2030'];
-const forecastColors = { 2026: '#6D9DC5', 2027: '#A5C882', 2028: '#E5B181', 2029: '#D198C5', 2030: '#C4C1E0' };
-const PARTS_COLORS = { actual: '#78350f', predicted: '#f59e0b' };
-
 const CURRENT_DATE = new Date();
+const ALL_MODELS = '__ALL__';
 
-// --- NEW: Dynamic Color Generation Utility ---
+/* ----------------- Color generator (stable across models) ----------------- */
 const generateColorPalettes = (models) => {
-    const actual = {};
-    const predicted = {};
-    models.forEach((model, index) => {
-        const hue = (index * 45) % 360; // Distribute hues across the color wheel
-        actual[model] = `hsl(${hue}, 70%, 45%)`;    // Darker shade for actual
-        predicted[model] = `hsl(${hue}, 70%, 65%)`; // Lighter shade for predicted
-    });
-    return { actualColors: actual, predictedColors: predicted };
+  const actual = {};
+  const predicted = {};
+  models.forEach((model, index) => {
+    const hue = (index * 45) % 360;
+    actual[model] = `hsl(${hue}, 70%, 45%)`;
+    predicted[model] = `hsl(${hue}, 70%, 65%)`;
+  });
+  return { actualColors: actual, predictedColors: predicted };
 };
 
+/* ----------------- Utils ----------------- */
+const toISO = (d) => {
+  const dd = new Date(d);
+  dd.setHours(0, 0, 0, 0);
+  return dd.toISOString().split('T')[0];
+};
+const monthKey = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short' });
 
-// --- REVISED: Data Processing Function ---
-// Now accepts `modelNames` as a parameter instead of using a global constant.
-const processTimeSeriesData = (data, period, modelNames) => {
-    if (!data || modelNames.length === 0) return { chartData: [], partData: {} };
+/* ----------------- Data processing: returns chart rows + bucket→parts ----------------- */
+/**
+ * @returns {
+ *   chartData: Array<{
+ *     name: string,
+ *     bucketKey: string,
+ *     isFuture: boolean,
+ *     <model_actual>, <model_predicted>
+ *   }>,
+ *   bucketPartsData: { [bucketKey: string]: { [modelName: string]: {actual_parts:obj, predicted_parts:obj} } }
+ * }
+ */
+const processTimeSeriesData = (raw, period, modelNames) => {
+  if (!raw || modelNames.length === 0) return { chartData: [], bucketPartsData: {} };
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-    const fullTimeSeries = [];
-    if (period === 'WTD') {
-        const startOfWeek = new Date(today);
-        startOfWeek.setDate(today.getDate() - today.getDay());
-        for (let i = 0; i < 7; i++) {
-            const day = new Date(startOfWeek);
-            day.setDate(startOfWeek.getDate() + i);
-            fullTimeSeries.push({ date: day, key: day.toLocaleDateString('en-US', { weekday: 'short' }) });
-        }
-    } else if (period === 'MTD') {
-        const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-        for (let i = 1; i <= daysInMonth; i++) {
-            const day = new Date(today.getFullYear(), today.getMonth(), i);
-            fullTimeSeries.push({ date: day, key: i.toString() });
-        }
-    } else { // YTD
-        for (let i = 0; i < 12; i++) {
-            const day = new Date(today.getFullYear(), i, 1);
-            fullTimeSeries.push({ date: day, key: day.toLocaleDateString('en-US', { month: 'short' }) });
-        }
+  // Build all time buckets for X-axis
+  const buckets = [];
+  if (period === 'WTD') {
+    // Start of current week (Sun)
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - startOfWeek.getDay());
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(startOfWeek);
+      day.setDate(startOfWeek.getDate() + i);
+      buckets.push({
+        label: day.toLocaleDateString('en-US', { weekday: 'short' }),
+        bucketKey: toISO(day), // daily ISO
+        dateObj: day,
+      });
     }
-
-    const aggregatedData = {};
-    const partData = {};
-
-    for (const dateStr in data) {
-        const entryDate = new Date(dateStr);
-        const dataKey = period === 'YTD' ? entryDate.toLocaleDateString('en-US', { month: 'short' }) : dateStr;
-
-        if (!aggregatedData[dataKey]) aggregatedData[dataKey] = {};
-
-        for (const model in data[dateStr]) {
-            if (!aggregatedData[dataKey][model]) {
-                aggregatedData[dataKey][model] = { total_actual_claims: 0, total_predicted_claims: 0 };
-            }
-            aggregatedData[dataKey][model].total_actual_claims += data[dateStr][model].total_actual_claims;
-            aggregatedData[dataKey][model].total_predicted_claims += data[dateStr][model].total_predicted_claims;
-
-            // Only aggregate parts for dates up to today
-            if (entryDate <= today) {
-                if (!partData[model]) partData[model] = { actual_parts: {}, predicted_parts: {} };
-                Object.entries(data[dateStr][model].actual_parts).forEach(([part, count]) => {
-                    partData[model].actual_parts[part] = (partData[model].actual_parts[part] || 0) + count;
-                });
-                Object.entries(data[dateStr][model].predicted_parts).forEach(([part, count]) => {
-                    partData[model].predicted_parts[part] = (partData[model].predicted_parts[part] || 0) + count;
-                });
-            }
-        }
+  } else if (period === 'MTD') {
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    for (let i = 1; i <= daysInMonth; i++) {
+      const day = new Date(today.getFullYear(), today.getMonth(), i);
+      buckets.push({ label: String(i), bucketKey: toISO(day), dateObj: day });
     }
+  } else { // YTD
+    for (let m = 0; m < 12; m++) {
+      const day = new Date(today.getFullYear(), m, 1);
+      buckets.push({
+        label: day.toLocaleDateString('en-US', { month: 'short' }),
+        bucketKey: monthKey(day), // e.g., "Jan"
+        dateObj: day
+      });
+    }
+  }
 
-    const finalChartData = fullTimeSeries.map(({ date, key }) => {
-        const entry = { name: key };
-        const dataKey = period === 'YTD' ? key : date.toISOString().split('T')[0];
-        const dayData = aggregatedData[dataKey];
+  // Aggregations
+  const totalsByBucket = {}; // bucketKey -> model -> { total_actual_claims, total_predicted_claims }
+  const bucketPartsData = {}; // bucketKey -> model -> { actual_parts, predicted_parts }
 
-        modelNames.forEach(model => {
-            const actualKey = `${model}_actual`;
-            const predictedKey = `${model}_predicted`;
-            const modelData = dayData ? dayData[model] : null;
+  // Iterate raw data (YYYY-MM-DD -> models)
+  Object.keys(raw).forEach((dateStr) => {
+    const entryDate = new Date(dateStr);
+    entryDate.setHours(0, 0, 0, 0);
 
-            if (date <= today) {
-                entry[actualKey] = modelData?.total_actual_claims || 0;
-                entry[predictedKey] = modelData?.total_predicted_claims || 0;
-            } else {
-                entry[actualKey] = 0; // No actuals for the future
-                entry[predictedKey] = modelData?.total_predicted_claims || 0;
-            }
+    const keyForTotals = (period === 'YTD') ? monthKey(entryDate) : toISO(entryDate);
+
+    // Only care about buckets present on the X axis (same month keys or daily keys)
+    const bucketExists = buckets.some(b => b.bucketKey === keyForTotals);
+    if (!bucketExists) return;
+
+    if (!totalsByBucket[keyForTotals]) totalsByBucket[keyForTotals] = {};
+    if (!bucketPartsData[keyForTotals]) bucketPartsData[keyForTotals] = {};
+
+    const modelsForDate = raw[dateStr] || {};
+    Object.keys(modelsForDate).forEach((model) => {
+      const m = modelsForDate[model];
+
+      // Totals
+      if (!totalsByBucket[keyForTotals][model]) {
+        totalsByBucket[keyForTotals][model] = { total_actual_claims: 0, total_predicted_claims: 0 };
+      }
+      totalsByBucket[keyForTotals][model].total_actual_claims += (m.total_actual_claims || 0);
+      totalsByBucket[keyForTotals][model].total_predicted_claims += (m.total_predicted_claims || 0);
+
+      // Parts store
+      if (!bucketPartsData[keyForTotals][model]) {
+        bucketPartsData[keyForTotals][model] = { actual_parts: {}, predicted_parts: {} };
+      }
+
+      // Only include ACTUAL parts if entryDate <= today
+      if (entryDate <= today) {
+        Object.entries(m.actual_parts || {}).forEach(([part, count]) => {
+          bucketPartsData[keyForTotals][model].actual_parts[part] =
+            (bucketPartsData[keyForTotals][model].actual_parts[part] || 0) + (count || 0);
         });
-        return entry;
+      }
+
+      // Always include PREDICTED parts
+      Object.entries(m.predicted_parts || {}).forEach(([part, count]) => {
+        bucketPartsData[keyForTotals][model].predicted_parts[part] =
+          (bucketPartsData[keyForTotals][model].predicted_parts[part] || 0) + (count || 0);
+      });
+    });
+  });
+
+  // Build chart rows aligned to buckets (+ mark future buckets explicitly)
+  const chartData = buckets.map(({ label, bucketKey, dateObj }) => {
+    const row = { name: label, bucketKey, isFuture: false };
+    const models = totalsByBucket[bucketKey] || {};
+
+    modelNames.forEach((model) => {
+      const actualKey = `${model}_actual`;
+      const predictedKey = `${model}_predicted`;
+      const totals = models[model] || null;
+
+      if (period === 'YTD') {
+        const nowMonthIndex = today.getMonth();
+        const rowMonthIndex = dateObj.getMonth(); // buckets are constructed with current year
+        const isFutureMonth = rowMonthIndex > nowMonthIndex;
+        if (isFutureMonth) row.isFuture = true;
+        row[actualKey] = isFutureMonth ? 0 : (totals?.total_actual_claims || 0);
+        row[predictedKey] = totals?.total_predicted_claims || 0;
+      } else {
+        const isFutureDay = new Date(dateObj) > today;
+        if (isFutureDay) row.isFuture = true;
+        row[actualKey] = isFutureDay ? 0 : (totals?.total_actual_claims || 0);
+        row[predictedKey] = totals?.total_predicted_claims || 0;
+      }
     });
 
-    return { chartData: finalChartData, partData };
+    return row;
+  });
+
+  return { chartData, bucketPartsData };
 };
 
-// --- Child Components (Unchanged) ---
+/* ----------------- Tooltips ----------------- */
 const TimeSeriesTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-        return (
-            <div className="bg-white p-4 border border-gray-300 rounded-lg shadow-lg">
-                <p className="font-bold text-gray-800">{label}</p>
-                {payload.map((pld, index) => (
-                    <div key={index} style={{ color: pld.fill }}>
-                        {`${pld.name}: ${pld.value.toLocaleString()}`}
-                    </div>
-                ))}
-            </div>
-        );
-    }
-    return null;
+  if (!active || !payload || !payload.length) return null;
+
+  return (
+    <div className="bg-white p-4 border border-gray-300 rounded-lg shadow-lg">
+      <p className="font-bold text-gray-800">{label}</p>
+      {payload.map((pld, i) => (
+        <div key={i} style={{ color: pld.fill }}>
+          {`${pld.name}: ${Number(pld.value ?? 0).toLocaleString()}`}
+        </div>
+      ))}
+      <div className="text-xs text-gray-500 mt-2">Click a bar to see part-wise details.</div>
+    </div>
+  );
 };
-const ForecastTooltip = ({ active, payload, label }) => { /* ... As in original ... */ };
-const PartWiseClaimsModal = ({ isOpen, onClose, data, period }) => { /* ... As in original ... */ };
 
-// --- Main Dashboard Component (REVISED) ---
+/* ----------------- Modal showing parts for clicked bar ----------------- */
+const PartsTable = ({ title, parts }) => {
+  const rows = useMemo(() => {
+    const arr = Object.entries(parts || {}).map(([name, count]) => ({ name, count: Number(count || 0) }));
+    arr.sort((a, b) => b.count - a.count);
+    return arr;
+  }, [parts]);
+
+  if (!rows.length) return (
+    <div className="text-sm text-gray-500 italic p-3">No data</div>
+  );
+
+  return (
+    <div className="rounded-xl border border-gray-200 overflow-hidden">
+      <div className="px-3 py-2 bg-gray-100 text-sm font-semibold">{title}</div>
+      <div className="max-h-64 overflow-auto">
+        <table className="min-w-full text-sm">
+          <thead className="bg-white sticky top-0">
+            <tr>
+              <th className="text-left px-3 py-2 border-b">Part</th>
+              <th className="text-right px-3 py-2 border-b">Qty</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, idx) => (
+              <tr key={idx} className="odd:bg-white even:bg-gray-50">
+                <td className="px-3 py-1.5">{r.name}</td>
+                <td className="px-3 py-1.5 text-right font-medium">{r.count.toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+const PartWiseClaimsModal = ({ open, onClose, header, modelName, actualParts, predictedParts }) => {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center">
+      {/* overlay */}
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      {/* dialog */}
+      <div className="relative bg-white w-[95%] max-w-4xl rounded-2xl shadow-xl border border-gray-200 p-4 md:p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="text-xs text-gray-500">{header}</div>
+            <h3 className="text-lg md:text-xl font-semibold text-gray-900">
+              {modelName.replace(/_/g, ' ')} — Parts Breakdown
+            </h3>
+          </div>
+          <button onClick={onClose}
+                  className="p-2 rounded-md hover:bg-gray-100 active:scale-95 transition" aria-label="Close">
+            <XIcon />
+          </button>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-4">
+          <PartsTable title="Actual Parts (till today)" parts={actualParts} />
+          <PartsTable title="Predicted Parts" parts={predictedParts} />
+        </div>
+
+        <div className="mt-4 text-xs text-gray-500">
+          Note: Actuals include data up to today only. Future dates/months will not show actual parts.
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ----------------- Main Component ----------------- */
 const MazdaClaimsDashboard = () => {
-    const [dailyClaimsData, setDailyClaimsData] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [selectedPeriod, setSelectedPeriod] = useState('YTD');
-    const [modalData, setModalData] = useState(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [activeForecastYears, setActiveForecastYears] = useState(
-        forecastYears.reduce((acc, year) => ({ ...acc, [year]: true }), {})
-    );
+  const [dailyClaimsData, setDailyClaimsData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
+  const [selectedPeriod, setSelectedPeriod] = useState('YTD'); // YTD | MTD | WTD
+  const [selectedModel, setSelectedModel] = useState(ALL_MODELS);
+
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalHeader, setModalHeader] = useState('');
+  const [modalModel, setModalModel] = useState('');
+  const [modalActual, setModalActual] = useState({});
+  const [modalPredicted, setModalPredicted] = useState({});
+
+  // Fetch API (expects { success, data: { 'YYYY-MM-DD': { MODEL: {...} } } })
   useEffect(() => {
     fetch(`${config.API_BASE_URL}/forecast-claims/`)
-      .then(res => res.ok ? res.json() : Promise.reject(new Error('API error')))
-      .then(data => {
-        setDailyClaimsData(data.data); // use `data.data` to access actual forecast
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('API error'))))
+      .then((json) => {
+        const dataObj = json?.data || json?.Data || json?.result || {};
+        setDailyClaimsData(dataObj);
         setLoading(false);
       })
-      .catch(err => {
-        setError(err.message);
+      .catch((err) => {
+        setError(err.message || 'Failed to load');
         setLoading(false);
       });
   }, []);
-    // --- REVISED: Dynamic model name and color generation ---
-    const modelNames = useMemo(() => {
-        if (!dailyClaimsData) return [];
-        const allNames = new Set();
-        Object.values(dailyClaimsData).forEach(dateEntry => {
-            Object.keys(dateEntry).forEach(modelName => allNames.add(modelName));
-        });
-        return Array.from(allNames).sort();
-    }, [dailyClaimsData]);
 
-    const { actualColors, predictedColors } = useMemo(() => generateColorPalettes(modelNames), [modelNames]);
+  // All distinct model names present
+  const allModelNames = useMemo(() => {
+    if (!dailyClaimsData) return [];
+    const s = new Set();
+    Object.values(dailyClaimsData).forEach((dateEntry) => {
+      Object.keys(dateEntry || {}).forEach((m) => s.add(m));
+    });
+    return Array.from(s).sort();
+  }, [dailyClaimsData]);
 
-    const { chartData, partData } = useMemo(() => {
-        if (selectedPeriod === 'Forecast') return { chartData: forecastData, partData: {} };
-        return processTimeSeriesData(dailyClaimsData, selectedPeriod, modelNames);
-    }, [selectedPeriod, dailyClaimsData, modelNames]);
+  // Keep selection sane if data changes
+  useEffect(() => {
+    if (selectedModel !== ALL_MODELS && !allModelNames.includes(selectedModel)) {
+      setSelectedModel(ALL_MODELS);
+    }
+  }, [allModelNames, selectedModel]);
 
+  const displayedModels = useMemo(
+    () => (selectedModel === ALL_MODELS ? allModelNames : [selectedModel]),
+    [selectedModel, allModelNames]
+  );
 
-    const handleBarClick = (data, index, event) => {
-        if (!event || selectedPeriod === 'Forecast' || !event.tooltipPayload) return;
-        const payload = event.tooltipPayload[0];
-        const modelKey = payload.dataKey.replace('_actual', '').replace('_predicted', '');
-        if (partData[modelKey]) {
-            setModalData({ modelName: modelKey.replace(/_/g, ' '), parts: partData[modelKey] });
-            setIsModalOpen(true);
-        }
-    };
+  // Colors stay stable for all models
+  const { actualColors, predictedColors } = useMemo(
+    () => generateColorPalettes(allModelNames),
+    [allModelNames]
+  );
 
-    const closeModal = () => setIsModalOpen(false);
-    const handleLegendClick = (data) => setActiveForecastYears(prev => ({ ...prev, [data.dataKey]: !prev[data.dataKey] }));
+  const { chartData, bucketPartsData } = useMemo(
+    () => processTimeSeriesData(dailyClaimsData, selectedPeriod, displayedModels),
+    [dailyClaimsData, selectedPeriod, displayedModels]
+  );
 
-    if (loading) return <div className="p-8 text-center text-lg">Loading...</div>;
-    if (error) return <div className="p-8 text-center text-red-600">Error: {error}</div>;
-    if (!dailyClaimsData) return <div className="p-8 text-center text-lg">No data available.</div>;
+  // Label for title
+  const periodLabels = {
+    YTD: `Yearly model wise Claims Distribution (${CURRENT_DATE.getFullYear()})`,
+    MTD: `Monthly model wise Claims Distribution (${CURRENT_DATE.toLocaleDateString('en-US', { month: 'long' })})`,
+    WTD: 'Weekly model wise Claims Distribution',
+  };
+  const chartTitle = periodLabels[selectedPeriod];
 
-    const periodLabels = {
-        'YTD': `Yearly model wise Claims Distribution (${CURRENT_DATE.getFullYear()})`,
-        'MTD': `Monthly  model wise  Claims Distribution (${CURRENT_DATE.toLocaleDateString('en-US', { month: 'long' })})`,
-        'WTD': 'Weekly  model wise  Claims Distribution'
-    };
-    const chartTitle = periodLabels[selectedPeriod];
+  // CLICK HANDLER: receives Recharts point + our model/series context
+  const handleBarClick = (entry, modelName, series) => {
+    if (!entry || !entry.payload) return;
 
-    return (
-        <div className="bg-gray-50 p-6 rounded-2xl shadow-lg border border-gray-200 font-sans">
-            <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-                <h1 className="text-2xl font-bold text-gray-800">{chartTitle}</h1>
-                <select value={selectedPeriod} onChange={(e) => setSelectedPeriod(e.target.value)} className="bg-white border border-gray-300 rounded-lg py-2 px-4">
-                    <option value="YTD">YTD</option>
-                    <option value="MTD">MTD</option>
-                    <option value="WTD">WTD</option>
-                    
-                </select>
-            </div>
+    const { bucketKey, name, isFuture } = entry.payload;
+    const bucket = bucketPartsData?.[bucketKey] || {};
+    const partsOfModel = bucket?.[modelName] || { actual_parts: {}, predicted_parts: {} };
 
-            <div className="w-full h-[550px]">
-                {selectedPeriod === 'Forecast' ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="modelName" type="category" angle={-45} textAnchor="end" height={80} />
-                            <YAxis label={{ value: "Forecasted Claims", angle: -90, position: "insideLeft" }} />
-                            <Tooltip content={<ForecastTooltip />} cursor={{ fill: 'rgba(200, 200, 200, 0.2)' }} />
-                            <Legend onClick={handleLegendClick} />
-                            {forecastYears.map(year => (
-                                <Bar key={year} dataKey={year} stackId="a" fill={forecastColors[year]} hide={!activeForecastYears[year]} />
-                            ))}
-                        </BarChart>
-                    </ResponsiveContainer>
-                ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" />
-                            <YAxis />
-                            <Tooltip content={<TimeSeriesTooltip />} />
-                            <Legend />
-                            {/* --- REVISED: Dynamic Bar Generation --- */}
-                            {modelNames.map(model => (
-                                <React.Fragment key={model}>
-                                    <Bar
-                                        dataKey={`${model}_actual`}
-                                        name={`${model.replace(/_/g, ' ')} Actual`}
-                                        fill={actualColors[model]}
-                                        stackId="actual"
-                                        onClick={handleBarClick}
-                                        className="cursor-pointer" />
-                                    <Bar
-                                        dataKey={`${model}_predicted`}
-                                        name={`${model.replace(/_/g, ' ')} Predicted`}
-                                        fill={predictedColors[model]}
-                                        stackId="predicted"
-                                        onClick={handleBarClick}
-                                        className="cursor-pointer" />
-                                </React.Fragment>
-                            ))}
-                        </BarChart>
-                    </ResponsiveContainer>
-                )}
-            </div>
+    // ✅ If this bucket is in the future (e.g., YTD months after current month), hide actual parts.
+    const actualPartsForModal = isFuture ? {} : (partsOfModel.actual_parts || {});
+    const predictedPartsForModal = partsOfModel.predicted_parts || {};
 
-            <PartWiseClaimsModal isOpen={isModalOpen} onClose={closeModal} data={modalData} period={selectedPeriod} />
+    setModalHeader(`${selectedPeriod} • ${name} • ${series === 'actual' ? 'Actual' : 'Predicted'}`);
+    setModalModel(modelName);
+    setModalActual(actualPartsForModal);
+    setModalPredicted(predictedPartsForModal);
+    setModalOpen(true);
+  };
+
+  if (loading) return <div className="p-8 text-center text-lg">Loading...</div>;
+  if (error) return <div className="p-8 text-center text-red-600">Error: {error}</div>;
+  if (!dailyClaimsData) return <div className="p-8 text-center text-lg">No data available.</div>;
+
+  return (
+    <div className="bg-gray-50 p-6 rounded-2xl shadow-lg border border-gray-200 font-sans">
+      {/* Header & Filters */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">{chartTitle}</h1>
+
+        <div className="flex flex-col sm:flex-row gap-3">
+          <select
+            value={selectedPeriod}
+            onChange={(e) => setSelectedPeriod(e.target.value)}
+            className="bg-white border border-gray-300 rounded-lg py-2 px-4"
+            aria-label="Select period"
+          >
+            <option value="YTD">YTD</option>
+            <option value="MTD">MTD</option>
+            <option value="WTD">WTD</option>
+          </select>
+
+          <select
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value)}
+            className="bg-white border border-gray-300 rounded-lg py-2 px-4"
+            aria-label="Select model"
+          >
+            <option value={ALL_MODELS}>All Models</option>
+            {allModelNames.map((m) => (
+              <option key={m} value={m}>{m.replace(/_/g, ' ')}</option>
+            ))}
+          </select>
         </div>
-    );
+      </div>
+
+      {/* Chart */}
+      <div className="w-full h-[560px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="name" />
+            <YAxis />
+            <Tooltip content={<TimeSeriesTooltip />} />
+            <Legend />
+            {displayedModels.map((model) => (
+              <React.Fragment key={model}>
+                <Bar
+                  dataKey={`${model}_actual`}
+                  name={`${model.replace(/_/g, ' ')} Actual`}
+                  fill={actualColors[model]}
+                  stackId="actual"
+                  onClick={(entry) => handleBarClick(entry, model, 'actual')}
+                  className="cursor-pointer"
+                />
+                <Bar
+                  dataKey={`${model}_predicted`}
+                  name={`${model.replace(/_/g, ' ')} Predicted`}
+                  fill={predictedColors[model]}
+                  stackId="predicted"
+                  onClick={(entry) => handleBarClick(entry, model, 'predicted')}
+                  className="cursor-pointer"
+                />
+              </React.Fragment>
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Modal */}
+      <PartWiseClaimsModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        header={modalHeader}
+        modelName={modalModel}
+        actualParts={modalActual}
+        predictedParts={modalPredicted}
+      />
+    </div>
+  );
 };
 
 export default MazdaClaimsDashboard;
