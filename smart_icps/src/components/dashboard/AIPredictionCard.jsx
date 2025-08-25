@@ -199,7 +199,7 @@ const AIPredictionCard = ({ title, color, code,dummydata, period, onPeriodChange
                         <h3 className="text-5xl font-bold text-gray-800">
                             <CountUp target={data.originalClaim} />
                         </h3>
-                        <HistoricalChangeIndicator data={data} period={period} />
+                        {/* <HistoricalChangeIndicator data={data} period={period} /> */}
                     </div>
                     <div className="text-right">
                         <p className={`text-sm font-bold ${styles.text}`}>Cost</p>
